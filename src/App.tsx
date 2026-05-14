@@ -10,6 +10,7 @@ export interface Session {
 }
 
 const SESSIONS_KEY = 'cb_sessions';
+const CHAT_STORAGE_PREFIX = 'cb_chat_';
 
 function loadSessions(): Session[] {
   try {
@@ -60,6 +61,17 @@ function App() {
     );
   }, []);
 
+  const handleDeleteSession = useCallback((id: string) => {
+    setSessions((prev) => prev.filter((session) => session.id !== id));
+    setActiveSessionId((currentId) => (currentId === id ? null : currentId));
+
+    try {
+      localStorage.removeItem(CHAT_STORAGE_PREFIX + id);
+    } catch (e) {
+      console.warn('[Storage] Failed to delete session messages:', e);
+    }
+  }, []);
+
   return (
     <div className="app">
       <Sidebar
@@ -68,6 +80,7 @@ function App() {
         activeSessionId={activeSessionId}
         onSelectSession={setActiveSessionId}
         onNewSession={createNewSession}
+        onDeleteSession={handleDeleteSession}
       />
       <div className="app-main">
         <Header
