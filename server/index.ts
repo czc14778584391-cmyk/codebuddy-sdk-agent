@@ -162,7 +162,7 @@ wss.on('connection', (ws: WebSocket) => {
 });
 
 async function handleChat(ws: WebSocket, data: any, connectionId: string) {
-  const { content, images, sessionId, model, allowedTools  } = data;
+  const { content, images, sessionId, sdkSessionId, model, allowedTools  } = data;
 
   // Stop any previous query
   await handleStop(connectionId);
@@ -254,12 +254,16 @@ async function handleChat(ws: WebSocket, data: any, connectionId: string) {
       options.allowedTools = allowedTools;
     }
 
-    // 如果有已知的 SDK session_id，使用 resume + continue 恢复对话上下文
-    const existingSdkSessionId = sessionId ? sessionMapping.get(sessionId) : null;
+    // 如果有已知的 SDK session_id，使用 resume 恢复对话上下文
+    const existingSdkSessionId = sessionId
+      ? sessionMapping.get(sessionId) || sdkSessionId || null
+      : sdkSessionId || null;
     if (existingSdkSessionId) {
       options.resume = existingSdkSessionId;
-      options.continue = true;
       console.log(`[SDK] Resuming session: ${existingSdkSessionId}`);
+      if (sessionId) {
+        sessionMapping.set(sessionId, existingSdkSessionId);
+      }
     } else {
       console.log(`[SDK] Starting new session`);
     }
@@ -277,7 +281,6 @@ async function handleChat(ws: WebSocket, data: any, connectionId: string) {
         // 首次创建 Session
         const sessionOpts: any = { ...options };
         delete sessionOpts.resume;
-        delete sessionOpts.continue;
         
         if (existingSdkSessionId) {
           persistentSession = (await import('@tencent-ai/agent-sdk')).unstable_v2_resumeSession(existingSdkSessionId, sessionOpts);

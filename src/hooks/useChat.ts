@@ -50,9 +50,11 @@ function loadMessages(sessionId: string): ChatMessage[] {
 
 export function useChat(
   sessionId: string | null,
+  sdkSessionId: string | null,
   model: string,
   onSessionCreated: (session: Session) => void,
-  onTitleUpdate: (id: string, title: string) => void
+  onTitleUpdate: (id: string, title: string) => void,
+  onSdkSessionUpdate: (id: string, sdkSessionId: string) => void
 ) {
   const { connected, messages, send, clearMessages } = useWebSocket(WS_URL);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -117,7 +119,9 @@ export function useChat(
         break;
 
       case 'system':
-        // SDK session info
+        if (sessionIdRef.current && msg.sessionId) {
+          onSdkSessionUpdate(sessionIdRef.current, msg.sessionId);
+        }
         break;
 
       // === 流式事件 ===
@@ -382,10 +386,11 @@ export function useChat(
         content,
         images: images || [],
         sessionId: currentSessionId,
+        sdkSessionId,
         model,
       });
     },
-    [sessionId, model, isStreaming, chatMessages.length, send, onSessionCreated, onTitleUpdate]
+    [sessionId, sdkSessionId, model, isStreaming, chatMessages.length, send, onSessionCreated, onTitleUpdate]
   );
 
   const stopGeneration = useCallback(() => {
