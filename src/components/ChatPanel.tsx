@@ -7,13 +7,23 @@ import type { Session } from '../App';
 
 interface ChatPanelProps {
   sessionId: string | null;
+  sdkSessionId: string | null;
   model: string;
   onModelChange: (model: string) => void;
   onSessionCreated: (session: Session) => void;
   onTitleUpdate: (id: string, title: string) => void;
+  onSdkSessionUpdate: (id: string, sdkSessionId: string) => void;
 }
 
-function ChatPanel({ sessionId, model, onModelChange, onSessionCreated, onTitleUpdate }: ChatPanelProps) {
+function ChatPanel({
+  sessionId,
+  sdkSessionId,
+  model,
+  onModelChange,
+  onSessionCreated,
+  onTitleUpdate,
+  onSdkSessionUpdate,
+}: ChatPanelProps) {
   const {
     chatMessages,
     isStreaming,
@@ -22,7 +32,7 @@ function ChatPanel({ sessionId, model, onModelChange, onSessionCreated, onTitleU
     answerQuestion,
     stopGeneration,
     clearChat,
-  } = useChat(sessionId, model, onSessionCreated, onTitleUpdate);
+  } = useChat(sessionId, sdkSessionId, model, onSessionCreated, onTitleUpdate, onSdkSessionUpdate);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 

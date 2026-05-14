@@ -7,9 +7,11 @@ export interface Session {
   id: string;
   title: string;
   createdAt: number;
+  sdkSessionId?: string;
 }
 
 const SESSIONS_KEY = 'cb_sessions';
+const CHAT_STORAGE_PREFIX = 'cb_chat_';
 
 function loadSessions(): Session[] {
   try {
@@ -60,6 +62,23 @@ function App() {
     );
   }, []);
 
+  const handleSdkSessionUpdate = useCallback((id: string, sdkSessionId: string) => {
+    setSessions((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, sdkSessionId } : s))
+    );
+  }, []);
+
+  const handleDeleteSession = useCallback((id: string) => {
+    setSessions((prev) => prev.filter((session) => session.id !== id));
+    setActiveSessionId((currentId) => (currentId === id ? null : currentId));
+
+    try {
+      localStorage.removeItem(CHAT_STORAGE_PREFIX + id);
+    } catch (e) {
+      console.warn('[Storage] Failed to delete session messages:', e);
+    }
+  }, []);
+
   return (
     <div className="app">
       <Sidebar
@@ -68,6 +87,7 @@ function App() {
         activeSessionId={activeSessionId}
         onSelectSession={setActiveSessionId}
         onNewSession={createNewSession}
+        onDeleteSession={handleDeleteSession}
       />
       <div className="app-main">
         <Header
@@ -76,10 +96,12 @@ function App() {
         />
         <ChatPanel
           sessionId={activeSessionId}
+          sdkSessionId={sessions.find((s) => s.id === activeSessionId)?.sdkSessionId ?? null}
           model={model}
           onModelChange={setModel}
           onSessionCreated={handleSessionCreated}
           onTitleUpdate={handleTitleUpdate}
+          onSdkSessionUpdate={handleSdkSessionUpdate}
         />
       </div>
     </div>
