@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "knot": {
+      "type": "http",
+      "url": "http://mcp.knot.woa.com/open/mcp",
+      "headers": {
+        "x-knot-knowledge-uuids": "928f5fd2b5a048b5a33891082b749b72",
+        "x-knot-api-token": "794e8832baa64682972759c94dd5c3b1"
+      }
+    }
+  }
+}

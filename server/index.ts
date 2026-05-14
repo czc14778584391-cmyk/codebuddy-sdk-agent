@@ -1,9 +1,11 @@
 import 'dotenv/config';
 import express from 'express';
 import http from 'http';
+import path from 'path';
 import { WebSocketServer, WebSocket } from 'ws';
 import { query, unstable_v2_createSession } from '@tencent-ai/agent-sdk';
 import { v4 as uuidv4 } from 'uuid';
+
 
 // 启动时打印认证状态
 console.log(`[Auth] API Key: ${process.env.CODEBUDDY_API_KEY ? 'SET (' + process.env.CODEBUDDY_API_KEY.slice(0, 12) + '...)' : '❌ NOT SET'}`);
@@ -125,7 +127,7 @@ wss.on('connection', (ws: WebSocket) => {
   ws.on('message', async (raw: Buffer) => {
     try {
       const data = JSON.parse(raw.toString());
-      
+
       switch (data.type) {
         case 'chat': {
           await handleChat(ws, data, connectionId);
@@ -162,13 +164,13 @@ wss.on('connection', (ws: WebSocket) => {
 });
 
 async function handleChat(ws: WebSocket, data: any, connectionId: string) {
-  const { content, images, sessionId, sdkSessionId, model, allowedTools  } = data;
+  const { content, images, sessionId, sdkSessionId, model, allowedTools } = data;
 
   // Stop any previous query
   await handleStop(connectionId);
 
   const msgId = uuidv4();
-  
+
   // Send acknowledgment
   ws.send(JSON.stringify({
     type: 'ack',
@@ -178,33 +180,21 @@ async function handleChat(ws: WebSocket, data: any, connectionId: string) {
 
   try {
     const options: any = {
-      permissionMode: 'bypassPermissions',
+      permissionMode: 'default',
       maxTurns: 30,
       // 工作目录 - AI 文件操作的基准路径
       cwd: process.env.CODEBUDDY_CWD || process.cwd(),
-      // 不加载 CLI 的 skills/rules/mcp 等配置，保持纯净环境
-      settingSources: [],
+      // 加载项目级配置（.codebuddy/skills, .codebuddy/rules, .mcp.json, CODEBUDDY.md）
+      settingSources: ['project'],
       // 只保留核心工具，禁用 CLI 内置 skills
-      tools: ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep', 'WebSearch', 'WebFetch', 'AskUserQuestion'],
-      // 系统提示：告知 AI 使用 AskUserQuestion 工具来向用户提问
-      systemPrompt: {
-        append: `\n\n重要：当你需要向用户提问、确认选项或做出选择时，你必须使用 AskUserQuestion 工具，而不是在文本中列出选项让用户回复。AskUserQuestion 工具会在用户界面中渲染交互式选择卡片，用户可以直接点击选项。`,
-      },
+      allowedTools: ['Bash', 'Write', 'Edit', 'Glob', 'Grep', 'WebSearch', 'WebFetch', 'AskUserQuestion'],
+      disallowedTools: ['Read','PowerShell'],
       // 关键：开启流式部分消息
       includePartialMessages: true,
       // 关闭 thinking 加速响应
       thinking: { type: 'disabled' },
-      // MCP 服务器配置 - 项目知识库
-      mcpServers: {
-        knot: {
-          type: 'http',
-          url: 'http://mcp.knot.woa.com/open/mcp',
-          headers: {
-            'x-knot-knowledge-uuids': '928f5fd2b5a048b5a33891082b749b72',
-            'x-knot-api-token': '794e8832baa64682972759c94dd5c3b1',
-          },
-        },
-      },
+      // MCP 配置 - 直接指定文件路径
+      mcpServers: path.resolve(process.env.CODEBUDDY_CWD || process.cwd(), '.mcp.json'),
       // 传入环境变量
       env: {
         ...process.env,
@@ -228,7 +218,7 @@ async function handleChat(ws: WebSocket, data: any, connectionId: string) {
 
           // 等待前端回答（Promise + 超时）
           const answers = await waitForUserAnswer(connectionId, questionId);
-          
+
           if (answers) {
             return {
               behavior: 'allow',
@@ -281,7 +271,7 @@ async function handleChat(ws: WebSocket, data: any, connectionId: string) {
         // 首次创建 Session
         const sessionOpts: any = { ...options };
         delete sessionOpts.resume;
-        
+
         if (existingSdkSessionId) {
           persistentSession = (await import('@tencent-ai/agent-sdk')).unstable_v2_resumeSession(existingSdkSessionId, sessionOpts);
         } else {
@@ -319,7 +309,7 @@ async function handleChat(ws: WebSocket, data: any, connectionId: string) {
           contentBlocks.push({ type: 'text', text: content });
         }
         console.log(`[SDK] Multimodal send with ${images.length} image(s)`);
-        
+
         // 必须传完整的 UserMessage 对象格式
         await persistentSession.send({
           type: 'user',
@@ -339,7 +329,7 @@ async function handleChat(ws: WebSocket, data: any, connectionId: string) {
         queryIterator: null,
         session: persistentSession,
       });
-      
+
       if (sessionId && persistentSession.sessionId) {
         sessionMapping.set(sessionId, persistentSession.sessionId);
       }
@@ -348,7 +338,7 @@ async function handleChat(ws: WebSocket, data: any, connectionId: string) {
       // ===== 首次纯文本：用 query() 然后转为持久化 =====
       const q = query({ prompt: content, options });
       const iterator = q[Symbol.asyncIterator]();
-      
+
       activeQueries.set(connectionId, {
         sdkSessionId: existingSdkSessionId || null,
         queryIterator: iterator,
@@ -360,7 +350,7 @@ async function handleChat(ws: WebSocket, data: any, connectionId: string) {
     // Stream messages from SDK (统一处理)
     for await (const message of messageStream) {
       if (ws.readyState !== WebSocket.OPEN) break;
-
+      console.log(JSON.stringify(message));
       switch (message.type) {
         case 'system':
           // 保存 session 映射
